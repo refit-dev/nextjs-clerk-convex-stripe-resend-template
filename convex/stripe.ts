@@ -5,13 +5,14 @@ import Stripe from 'stripe';
 
 import { internal } from './_generated/api';
 import { action, internalAction } from './_generated/server';
+import { getSubscriptionPeriodEnd, getInvoiceSubscription } from './stripe-subscription-period';
 
 type Metadata = {
   userId: string;
 };
 
 const stripe = new Stripe(process.env.STRIPE_KEY!, {
-  apiVersion: '2024-04-10',
+  apiVersion: '2026-09-30.endive',
 });
 
 export const checkout = action({
@@ -75,13 +76,13 @@ export const fulfill = internalAction({
         await ctx.runMutation(internal.users.updateSubscription, {
           userId,
           subscriptionId: subscription.id,
-          endsOn: subscription.current_period_end * 1000,
+          endsOn: (getSubscriptionPeriodEnd(subscription, (items) => items[0])) * 1000,
         });
       }
 
       if (event.type === 'invoice.payment_succeeded') {
         const subscription = await stripe.subscriptions.retrieve(
-          completedEvent.subscription as string,
+          (getInvoiceSubscription(completedEvent)) as string,
         );
 
         const subscriptionId = subscription.items.data[0]?.price.id;
@@ -93,7 +94,7 @@ export const fulfill = internalAction({
 
         await ctx.runMutation(internal.users.updateSubscriptionBySubId, {
           subscriptionId,
-          endsOn: subscription.current_period_end * 1000,
+          endsOn: (getSubscriptionPeriodEnd(subscription, (items) => items[0])) * 1000,
         });
       }
 
